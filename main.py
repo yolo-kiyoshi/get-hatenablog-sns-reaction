@@ -16,7 +16,7 @@ FB_CLIENT_SECRET = os.environ['FB_CLIENT_SECRET']
 OUTPUT_FILE_NAME = os.environ['OUTPUT_FILE_NAME']
 
 
-def get_collection_uri(hatena_id: str, blog_id: str, password: str):
+def get_collection_uri(hatena_id: str, blog_id: str, password: str) -> str:
     """
     コレクションURLを取得する。
 
@@ -47,7 +47,7 @@ def get_collection_uri(hatena_id: str, blog_id: str, password: str):
     return False
 
 
-def get_entity_list(element: Element):
+def get_entity_list(element: Element) -> list:
     """
     投稿記事のURL、タイトル、投稿日を取得する。
 
@@ -67,7 +67,7 @@ def get_entity_list(element: Element):
     """
     # 名前空間
     prefix = '{http://www.w3.org/2005/Atom}'
-    entity_list = []
+    entity_list = list()
     for entry in element.findall(f'{prefix}entry'):
         entity = dict()
         # 投稿記事(entry)ごとに走査
@@ -86,7 +86,7 @@ def get_entity_list(element: Element):
     return entity_list
 
 
-def get_fb_access_token(fb_client_id: str, fb_client_secret: str):
+def get_fb_access_token(fb_client_id: str, fb_client_secret: str) -> str:
     """
     facebookのapi access tokenを取得する。
 
@@ -107,7 +107,7 @@ def get_fb_access_token(fb_client_id: str, fb_client_secret: str):
     return res.json()['access_token']
 
 
-def get_sns_reaction(entity_list: list, fb_token: str):
+def get_sns_reaction(entity_list: list, fb_token: str) -> pd.DataFrame:
     """
     facebookのapi access tokenを取得する。
 
@@ -129,14 +129,16 @@ def get_sns_reaction(entity_list: list, fb_token: str):
 
     """
     
-    fb_reaction_count = []
-    fb_comment_count = []
-    fb_share_count = []
-    fb_comment_plugin_count = []
-    hatena_bookmark = []
-    url = []
-    title = []
-    published = []
+    fb_reaction_count = list()
+    fb_comment_count = list()
+    fb_share_count = list()
+    fb_comment_plugin_count = list()
+    hatena_bookmark = list()
+    hatena_star_total = list()
+    hatena_star_uu = list()
+    url = list()
+    title = list()
+    published = list()
 
     for entity in entity_list:
         # facebookのシェア数
@@ -146,6 +148,7 @@ def get_sns_reaction(entity_list: list, fb_token: str):
         fb_comment_count.append(engagement['comment_count'])
         fb_share_count.append(engagement['share_count'])
         fb_comment_plugin_count.append(engagement['comment_plugin_count'])
+        
         # はてなブックマーク数
         res = requests.get(url=f'https://bookmark.hatenaapis.com/count/entries?url={entity["url"]}')
         hatena = res.json()
@@ -153,6 +156,14 @@ def get_sns_reaction(entity_list: list, fb_token: str):
         url.append(entity["url"])
         title.append(entity["title"])
         published.append(entity["published"])
+        
+        # はてなスター数
+        res = requests.get(url=f'https://s.hatena.com/entry.json?uri={entity["url"]}')
+        hatena = res.json()
+        # はてなスターの合計
+        hatena_star_total.append(len(hatena['entries'][0]['stars']))
+        # はてなスターのUU
+        hatena_star_uu.append(len(set([item['name'] for item in hatena['entries'][0]['stars']])))
 
     df_dict = dict()
     df_dict['title'] = title
@@ -163,11 +174,14 @@ def get_sns_reaction(entity_list: list, fb_token: str):
     df_dict['fb_share_count'] = fb_share_count
     df_dict['fb_comment_plugin_count'] = fb_comment_plugin_count
     df_dict['hatena_bookmark'] = hatena_bookmark
+    df_dict['hatena_star_total'] = hatena_star_total
+    df_dict['hatena_star_uu'] = hatena_star_uu
     
     return pd.DataFrame(df_dict)
 
 
 def main():
+    print('started process.')
     # はてなブログ記事のXMLを取得
     collection_uri = get_collection_uri(hatena_id=HATENA_ID, blog_id=BLOG_ID, password=API_KEY)
     res_collection = requests.get(collection_uri, auth=(HATENA_ID, API_KEY))
@@ -175,12 +189,14 @@ def main():
     root = fromstring(res_collection.text)
     # 投稿記事のURL、タイトル、投稿日を取得
     entity_list = get_entity_list(root)
+    print(f'target files: {entity_list}')
     # facebook api access tokenを取得
     token = get_fb_access_token(fb_client_id=FB_CLIENT_ID, fb_client_secret=FB_CLIENT_SECRET)
     # 投稿記事のSNSリアクション実績取得
     result = get_sns_reaction(entity_list=entity_list, fb_token=token)
     # 結果を出力
     result.to_csv(OUTPUT_FILE_NAME, index=False, header=True)
+    print(f'output the file to {OUTPUT_FILE_NAME}.')
 
 if __name__ == "__main__":
     main()
