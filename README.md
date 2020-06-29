@@ -13,6 +13,17 @@ FB_CLIENT_ID=******** # facebook developerアカウントのAPI ID
 FB_CLIENT_SECRET=******** # facebook developerアカウントのAPIシークレット
 GCP_CREDENTIAL=********.json # GCP credential
 SPREDSHEET_KEY=******** # 出力先spredsheet key
+
+```
+
+## gcloud CLIコマンド実行引数
+Cloud Functionsへ関数をデプロイしたり、Cloud Schedulerにジョブを登録するために必要なコマンド引数を`.param`に記載する。
+
+```
+FUNCTION_NAME=******** # Cloud Functionsにデプロイする関数名
+TOPIC=******** # Pub/Subのトピック名
+JOB_NAME=******** # Cloud Schedulerのジョブ名
+SCHEDULE=******** # Cloud Schedulerのスケジュール(cron式)
 ```
 
 ## Credentialファイル
@@ -28,9 +39,16 @@ SPREDSHEET_KEY=******** # 出力先spredsheet key
 docker-compose up
 ```
 
-# Google Cloud Functionsへのデプロイ
-以下を実行することでGoogle Cloud Functionsに関数がデプロイする。
+# Google Cloud Functionsへ関数のデプロイ
+以下を実行することでGoogle Cloud Functionsに関数をデプロイする。
 
 ```bash
-sh deploy.sh <function name> <entry point function name>
+sh deploy_function.sh
+```
+
+# Google Cloud Schedulerへのジョブの登録
+以下を実行することでGoogle Cloud Schedulerにジョブを登録する。
+
+```bash
+sh create_scheduler.sh
 ```
