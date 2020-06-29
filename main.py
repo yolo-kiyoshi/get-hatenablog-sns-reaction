@@ -1,10 +1,16 @@
 import os
 import requests
 from xml.etree.ElementTree import Element, fromstring
+from datetime import datetime
+from pytz import timezone
 
 import bs4
 
+import gspread
+
 import pandas as pd
+
+from oauth2client.service_account import ServiceAccountCredentials 
 
 
 # 環境変数を取得
@@ -13,7 +19,9 @@ BLOG_ID = os.environ['BLOG_ID']
 API_KEY = os.environ['API_KEY']
 FB_CLIENT_ID = os.environ['FB_CLIENT_ID']
 FB_CLIENT_SECRET = os.environ['FB_CLIENT_SECRET']
-OUTPUT_FILE_NAME = os.environ['OUTPUT_FILE_NAME']
+# OUTPUT_FILE_NAME = os.environ['OUTPUT_FILE_NAME']
+GCP_CREDENTIAL = os.environ['GCP_CREDENTIAL']
+SPREDSHEET_KEY = os.environ['SPREDSHEET_KEY']
 
 
 def get_collection_uri(hatena_id: str, blog_id: str, password: str) -> str:
@@ -144,15 +152,15 @@ def get_sns_reaction(entity_list: list, fb_token: str) -> pd.DataFrame:
         # facebookのシェア数
         res = requests.get(url=f'https://graph.facebook.com/?id={entity["url"]}&fields=og_object{{engagement}},engagement&access_token={fb_token}')
         engagement = res.json()['engagement']
-        fb_reaction_count.append(engagement['reaction_count'])
-        fb_comment_count.append(engagement['comment_count'])
-        fb_share_count.append(engagement['share_count'])
-        fb_comment_plugin_count.append(engagement['comment_plugin_count'])
+        fb_reaction_count.append(str(engagement['reaction_count']))
+        fb_comment_count.append(str(engagement['comment_count']))
+        fb_share_count.append(str(engagement['share_count']))
+        fb_comment_plugin_count.append(str(engagement['comment_plugin_count']))
         
         # はてなブックマーク数
         res = requests.get(url=f'https://bookmark.hatenaapis.com/count/entries?url={entity["url"]}')
         hatena = res.json()
-        hatena_bookmark.append(hatena[entity["url"]])
+        hatena_bookmark.append(str(hatena[entity["url"]]))
         url.append(entity["url"])
         title.append(entity["title"])
         published.append(entity["published"])
@@ -161,11 +169,12 @@ def get_sns_reaction(entity_list: list, fb_token: str) -> pd.DataFrame:
         res = requests.get(url=f'https://s.hatena.com/entry.json?uri={entity["url"]}')
         hatena = res.json()
         # はてなスターの合計
-        hatena_star_total.append(len(hatena['entries'][0]['stars']))
+        hatena_star_total.append(str(len(hatena['entries'][0]['stars'])))
         # はてなスターのUU
-        hatena_star_uu.append(len(set([item['name'] for item in hatena['entries'][0]['stars']])))
+        hatena_star_uu.append(str(len(set([item['name'] for item in hatena['entries'][0]['stars']]))))
 
     df_dict = dict()
+    df_dict['datetime'] = [datetime.now(timezone('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M:%S')] * len(entity_list)
     df_dict['title'] = title
     df_dict['url'] = url
     df_dict['published'] = published
@@ -180,7 +189,73 @@ def get_sns_reaction(entity_list: list, fb_token: str) -> pd.DataFrame:
     return pd.DataFrame(df_dict)
 
 
-def main():
+def to_spredsheet(df: pd.DataFrame) -> None:
+    """
+    コレクションURLを取得する。
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        spredsheetに格納対象のDataFrame。
+    
+    Notes:
+    https://tanuhack.com/gspread-dataframe
+    """
+
+    def _toAlpha(num):
+        """
+        数字からアルファベットを取得する。(例：26→Z、27→AA、10000→NTP)
+
+        Parameters
+        ----------
+        num : int
+            数字。
+
+        Returns
+        -------
+        alphabet : str
+            数字に対応するアルファベット。
+        
+        """
+        if num<=26:
+            return chr(64+num)
+        elif num%26==0:
+            return toAlpha(num//26-1)+chr(90)
+        else:
+            return toAlpha(num//26)+chr(64+num%26)
+    
+    #2つのAPIを記述しないとリフレッシュトークンを3600秒毎に発行し続けなければならない
+    scope = ['https://spreadsheets.google.com/feeds','https://www.googleapis.com/auth/drive']
+    # クレデンシャル設定
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(GCP_CREDENTIAL, scope)
+    # OAuth2の資格情報を使用してGoogle APIにログイン
+    gc = gspread.authorize(credentials)
+    # spredsheetを指定
+    worksheet = gc.open_by_key(SPREDSHEET_KEY).sheet1
+
+    start_row = len(worksheet.get_all_values()) + 1
+    # DataFrameの列数
+    col_lastnum = len(df.columns)
+    # DataFrameの行数
+    row_lastnum = len(df.index)
+    # シートが空の場合はヘッダを付与する
+    if start_row == 1:
+        cell_list = worksheet.range(f'A{start_row}:'+_toAlpha(col_lastnum)+str(row_lastnum+start_row))
+        diff = start_row + 1
+    else:
+        cell_list = worksheet.range(f'A{start_row}:'+_toAlpha(col_lastnum)+str(row_lastnum+start_row-1))
+        diff = start_row
+    for cell in cell_list:
+        if cell.row == 1:
+            val = df.columns[cell.col-1]
+        else:
+            val = df.iloc[cell.row-diff][cell.col-1]
+        cell.value = val
+    # spredsheetを更新
+    worksheet.update_cells(cell_list)
+
+
+def main(event, context):
     print('started process.')
     # はてなブログ記事のXMLを取得
     collection_uri = get_collection_uri(hatena_id=HATENA_ID, blog_id=BLOG_ID, password=API_KEY)
@@ -195,8 +270,8 @@ def main():
     # 投稿記事のSNSリアクション実績取得
     result = get_sns_reaction(entity_list=entity_list, fb_token=token)
     # 結果を出力
-    result.to_csv(OUTPUT_FILE_NAME, index=False, header=True)
-    print(f'output the file to {OUTPUT_FILE_NAME}.')
+    to_spredsheet(result)
+    print(f'output to spredsheet: https://docs.google.com/spreadsheets/d/{SPREDSHEET_KEY}')
 
 if __name__ == "__main__":
     main()
