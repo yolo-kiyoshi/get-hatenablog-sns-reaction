@@ -21,3 +21,6 @@ poetry.lock
 pyproject.toml
 .env.sample
 deploy.sh
+
+# include
+!*.json
