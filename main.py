@@ -8,6 +8,8 @@ import bs4
 
 import gspread
 
+import numpy
+
 import pandas as pd
 
 from oauth2client.service_account import ServiceAccountCredentials 
@@ -152,15 +154,15 @@ def get_sns_reaction(entity_list: list, fb_token: str) -> pd.DataFrame:
         # facebookのシェア数
         res = requests.get(url=f'https://graph.facebook.com/?id={entity["url"]}&fields=og_object{{engagement}},engagement&access_token={fb_token}')
         engagement = res.json()['engagement']
-        fb_reaction_count.append(str(engagement['reaction_count']))
-        fb_comment_count.append(str(engagement['comment_count']))
-        fb_share_count.append(str(engagement['share_count']))
-        fb_comment_plugin_count.append(str(engagement['comment_plugin_count']))
+        fb_reaction_count.append(engagement['reaction_count'])
+        fb_comment_count.append(engagement['comment_count'])
+        fb_share_count.append(engagement['share_count'])
+        fb_comment_plugin_count.append(engagement['comment_plugin_count'])
         
         # はてなブックマーク数
         res = requests.get(url=f'https://bookmark.hatenaapis.com/count/entries?url={entity["url"]}')
         hatena = res.json()
-        hatena_bookmark.append(str(hatena[entity["url"]]))
+        hatena_bookmark.append(hatena[entity["url"]])
         url.append(entity["url"])
         title.append(entity["title"])
         published.append(entity["published"])
@@ -169,9 +171,9 @@ def get_sns_reaction(entity_list: list, fb_token: str) -> pd.DataFrame:
         res = requests.get(url=f'https://s.hatena.com/entry.json?uri={entity["url"]}')
         hatena = res.json()
         # はてなスターの合計
-        hatena_star_total.append(str(len(hatena['entries'][0]['stars'])))
+        hatena_star_total.append(len(hatena['entries'][0]['stars']))
         # はてなスターのUU
-        hatena_star_uu.append(str(len(set([item['name'] for item in hatena['entries'][0]['stars']]))))
+        hatena_star_uu.append(len(set([item['name'] for item in hatena['entries'][0]['stars']])))
 
     df_dict = dict()
     df_dict['datetime'] = [datetime.now(timezone('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M:%S')] * len(entity_list)
@@ -250,7 +252,11 @@ def to_spredsheet(df: pd.DataFrame) -> None:
             val = df.columns[cell.col-1]
         else:
             val = df.iloc[cell.row-diff][cell.col-1]
-        cell.value = val
+        # numpy.int64型をint型に変換
+        if isinstance(val, numpy.integer):
+            cell.value = int(val)
+        else:
+            cell.value = val
     # spredsheetを更新
     worksheet.update_cells(cell_list)
 

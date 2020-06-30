@@ -34,6 +34,7 @@ SCHEDULE=******** # Cloud Schedulerのスケジュール(cron式)
 
 # ローカルでの実行
 以下を実行することで`.env`に記載したGoogle spredsheetにはてなブログに投稿した記事のSNSシェア数を出力する。
+※`main.py`の`main(event, context)`を`main()`に変更すること
 
 ```bash
 docker-compose up
