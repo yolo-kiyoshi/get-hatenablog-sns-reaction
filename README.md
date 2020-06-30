@@ -43,12 +43,12 @@ docker-compose up
 以下を実行することでGoogle Cloud Functionsに関数をデプロイする。
 
 ```bash
-sh deploy_function.sh
+./scripts/deploy_function.sh
 ```
 
 # Google Cloud Schedulerへのジョブの登録
 以下を実行することでGoogle Cloud Schedulerにジョブを登録する。
 
 ```bash
-sh create_scheduler.sh
+./scripts/create_scheduler.sh
 ```
