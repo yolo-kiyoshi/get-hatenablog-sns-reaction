@@ -2,9 +2,6 @@
 
 set -eu
 
-function_name=${1:-}
-topic=${2:-}
-
 # read command parameter
 . .param
 # read environment file
