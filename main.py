@@ -4,8 +4,6 @@ from xml.etree.ElementTree import Element, fromstring
 from datetime import datetime
 from pytz import timezone
 
-import bs4
-
 import gspread
 
 import numpy
@@ -50,8 +48,11 @@ def get_collection_uri(hatena_id: str, blog_id: str, password: str) -> str:
     service_doc_uri = "https://blog.hatena.ne.jp/{hatena_id:}/{blog_id:}/atom".format(hatena_id=hatena_id, blog_id=blog_id)
     res_service_doc = requests.get(url=service_doc_uri, auth=(hatena_id, password))
     if res_service_doc.ok:
-        soup_servicedoc_xml = bs4.BeautifulSoup(res_service_doc.content, features="html.parser")
-        collection_uri = soup_servicedoc_xml.collection.get("href")
+        root = fromstring(res_service_doc.content)
+        # 名前空間
+        prefix = '{http://www.w3.org/2007/app}'
+        element = root.find(f'{prefix}workspace/{prefix}collection')
+        collection_uri = element.get('href')
         return collection_uri
 
     return False
