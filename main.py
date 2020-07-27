@@ -80,6 +80,7 @@ def get_entity_list(element: Element) -> list:
     # 名前空間
     prefix = '{http://www.w3.org/2005/Atom}'
     entity_list = list()
+    # 投稿記事(entry)ごとに走査
     for entry in element.findall(f'{prefix}entry'):
         # 予約投稿の場合はスキップ
         reserve_time = datetime.strptime(entry.find(f'{prefix}updated').text, '%Y-%m-%dT%H:%M:%S%z')
@@ -87,19 +88,15 @@ def get_entity_list(element: Element) -> list:
             continue
 
         entity = dict()
-        # 投稿記事(entry)ごとに走査
-        for item in entry:
-            # URL
-            if item.get('rel') == 'alternate':
-                entity['url'] = item.get('href')
-            # タイトル名
-            if item.tag == f'{prefix}title':
-                entity['title'] = item.text
-            # 出版日
-            if item.tag == f'{prefix}published':
-                entity['published'] = item.text
+        # linkタグは複数存在
+        for i in entry.findall(f'{prefix}link'):
+            if i.attrib['rel'] == 'alternate':
+                entity['url'] = i.attrib['href']
+        # タイトル名
+        entity['title'] = entry.find(f'{prefix}title').text
+        # 出版日
+        entity['published'] = entry.find(f'{prefix}published').text                
         entity_list.append(entity)
-
     return entity_list
 
 
