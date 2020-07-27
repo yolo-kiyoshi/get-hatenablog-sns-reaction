@@ -19,7 +19,6 @@ BLOG_ID = os.environ['BLOG_ID']
 API_KEY = os.environ['API_KEY']
 FB_CLIENT_ID = os.environ['FB_CLIENT_ID']
 FB_CLIENT_SECRET = os.environ['FB_CLIENT_SECRET']
-# OUTPUT_FILE_NAME = os.environ['OUTPUT_FILE_NAME']
 GCP_CREDENTIAL = os.environ['GCP_CREDENTIAL']
 SPREDSHEET_KEY = os.environ['SPREDSHEET_KEY']
 
@@ -54,7 +53,6 @@ def get_collection_uri(hatena_id: str, blog_id: str, password: str) -> str:
         element = root.find(f'{prefix}workspace/{prefix}collection')
         collection_uri = element.get('href')
         return collection_uri
-
     return False
 
 
@@ -76,10 +74,18 @@ def get_entity_list(element: Element) -> list:
     -----
     https://orangain.hatenablog.com/entry/namespaces-in-xpath
     """
+    # timezoneの指定
+    jst = timezone('Asia/Tokyo')
+    dt_now_jst = datetime.now(jst)
     # 名前空間
     prefix = '{http://www.w3.org/2005/Atom}'
     entity_list = list()
     for entry in element.findall(f'{prefix}entry'):
+        # 予約投稿の場合はスキップ
+        reserve_time = datetime.strptime(entry.find(f'{prefix}updated').text, '%Y-%m-%dT%H:%M:%S%z')
+        if reserve_time > dt_now_jst:
+            continue
+
         entity = dict()
         # 投稿記事(entry)ごとに走査
         for item in entry:
