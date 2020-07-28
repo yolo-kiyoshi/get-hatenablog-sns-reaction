@@ -80,23 +80,30 @@ def get_entity_list(element: Element) -> list:
     # 名前空間
     prefix = '{http://www.w3.org/2005/Atom}'
     entity_list = list()
+    element_list = [element]
+    # ページ数が複数の場合
+    for i in element.findall(f'{prefix}link'):
+        if i.attrib['rel'] == 'next':
+            res_collection = requests.get(i.attrib['href'], auth=(HATENA_ID, API_KEY))
+            element_list.append(fromstring(res_collection.text))
     # 投稿記事(entry)ごとに走査
-    for entry in element.findall(f'{prefix}entry'):
-        # 予約投稿の場合はスキップ
-        reserve_time = datetime.strptime(entry.find(f'{prefix}updated').text, '%Y-%m-%dT%H:%M:%S%z')
-        if reserve_time > dt_now_jst:
-            continue
+    for element in element_list:
+        for entry in element.findall(f'{prefix}entry'):
+            # 予約投稿の場合はスキップ
+            reserve_time = datetime.strptime(entry.find(f'{prefix}updated').text, '%Y-%m-%dT%H:%M:%S%z')
+            if reserve_time > dt_now_jst:
+                continue
 
-        entity = dict()
-        # linkタグは複数存在
-        for i in entry.findall(f'{prefix}link'):
-            if i.attrib['rel'] == 'alternate':
-                entity['url'] = i.attrib['href']
-        # タイトル名
-        entity['title'] = entry.find(f'{prefix}title').text
-        # 出版日
-        entity['published'] = entry.find(f'{prefix}published').text                
-        entity_list.append(entity)
+            entity = dict()
+            # linkタグは複数存在
+            for i in entry.findall(f'{prefix}link'):
+                if i.attrib['rel'] == 'alternate':
+                    entity['url'] = i.attrib['href']
+            # タイトル名
+            entity['title'] = entry.find(f'{prefix}title').text
+            # 出版日
+            entity['published'] = entry.find(f'{prefix}published').text                
+            entity_list.append(entity)
     return entity_list
 
 
